@@ -1,5 +1,5 @@
 "use strict";
-// Copyright 2020 by David Sherret. All rights reserved.
+// Copyright 2020-2021 by David Sherret. All rights reserved.
 // This work is licensed under the terms of the MIT license.
 // For a copy, see <https://opensource.org/licenses/MIT>.
 exports.__esModule = true;
