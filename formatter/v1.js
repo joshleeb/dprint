@@ -4,6 +4,8 @@
 // For a copy, see <https://opensource.org/licenses/MIT>.
 exports.__esModule = true;
 exports.createFromInstance = exports.createFromBuffer = exports.createStreaming = exports.createImportObject = void 0;
+console.warn("[dprint]: Apologies for the warn. This module will be deprecated and 404 starting September 2021. "
+    + "Please upgrade to the immutable deno.land url. For more details see: https://github.com/dprint/js-formatter");
 /**
  * Creates the WebAssembly import object, if necessary.
  */
