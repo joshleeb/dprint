@@ -19,7 +19,7 @@ function createImportObject() {
             "host_take_file_path": function () { },
             "host_format": function () { return 0; },
             "host_get_formatted_text": function () { return 0; },
-            "host_get_error_text": function () { return 0; },
+            "host_get_error_text": function () { return 0; }, // zero length
         },
     };
 }
