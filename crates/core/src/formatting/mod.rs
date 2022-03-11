@@ -21,8 +21,6 @@ pub use print::print;
 #[cfg(feature = "tracing")]
 pub use print::trace_printing;
 pub use print::PrintOptions;
-#[cfg(feature = "tracing")]
-pub use print::TracingResult;
 pub use print_items::*;
 use printer::*;
 #[cfg(feature = "tracing")]

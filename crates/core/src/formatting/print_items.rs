@@ -2,9 +2,11 @@ use std::cell::UnsafeCell;
 use std::mem;
 use std::rc::Rc;
 
+use super::id::IdCounter;
 use super::printer::Printer;
+#[cfg(feature = "tracing")]
+use super::tracing::*;
 use super::utils::with_bump_allocator;
-use crate::formatting::id::IdCounter;
 
 /** Print Items */
 
@@ -226,78 +228,6 @@ where
   }
 }
 
-/** Tracing */
-
-#[cfg(feature = "tracing")]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Trace {
-  /// The relative time of the trace from the start of printing in nanoseconds.
-  pub nanos: u128,
-  pub print_node_id: usize,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub writer_node_id: Option<usize>,
-}
-
-#[cfg(feature = "tracing")]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TraceWriterNode {
-  pub writer_node_id: usize,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub previous_node_id: Option<usize>,
-  pub text: String,
-}
-
-#[cfg(feature = "tracing")]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TracePrintNode {
-  pub print_node_id: usize,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub next_print_node_id: Option<usize>,
-  pub print_item: TracePrintItem,
-}
-
-#[cfg(feature = "tracing")]
-#[derive(serde::Serialize)]
-#[serde(tag = "kind", content = "content", rename_all = "camelCase")]
-pub enum TracePrintItem {
-  String(String),
-  Condition(TraceCondition),
-  Info(TraceInfo),
-  Signal(Signal),
-  /// Identifier to the print node.
-  RcPath(usize),
-}
-
-#[cfg(feature = "tracing")]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TraceInfo {
-  pub info_id: usize,
-  pub name: String,
-}
-
-#[cfg(feature = "tracing")]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TraceCondition {
-  pub condition_id: usize,
-  pub name: String,
-  pub is_stored: bool,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  /// Identifier to the true path print node.
-  pub true_path: Option<usize>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  /// Identifier to the false path print node.
-  pub false_path: Option<usize>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  /// Any infos that should cause the re-evaluation of this condition.
-  /// This is only done on request for performance reasons.
-  pub dependent_infos: Option<Vec<usize>>,
-}
-
 /** Print Node */
 
 pub struct PrintNode {
@@ -305,11 +235,6 @@ pub struct PrintNode {
   pub(super) item: PrintItem,
   #[cfg(feature = "tracing")]
   pub print_node_id: usize,
-}
-
-thread_local! {
-  #[cfg(feature = "tracing")]
-  static PRINT_NODE_IDS: IdCounter = IdCounter::default();
 }
 
 impl PrintNode {

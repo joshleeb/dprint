@@ -1,6 +1,8 @@
 use bumpalo::Bump;
 use std::cell::RefCell;
 
+#[cfg(feature = "tracing")]
+use super::tracing::*;
 use super::utils::with_bump_allocator;
 use super::utils::with_bump_allocator_mut;
 use super::*;
@@ -65,15 +67,6 @@ fn print_with_allocator(bump: &Bump, print_items: &PrintItems, options: &PrintOp
   }
 }
 
-#[cfg(feature = "tracing")]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TracingResult {
-  pub traces: Vec<Trace>,
-  pub writer_nodes: Vec<TraceWriterNode>,
-  pub print_nodes: Vec<TracePrintNode>,
-}
-
 /// Gets trace information for analysis purposes.
 #[cfg(feature = "tracing")]
 pub fn trace_printing(get_print_items: impl FnOnce() -> PrintItems, options: PrintOptions) -> TracingResult {
@@ -83,7 +76,7 @@ pub fn trace_printing(get_print_items: impl FnOnce() -> PrintItems, options: Pri
   let print_items = get_print_items();
 
   with_bump_allocator_mut(|bump| {
-    let tracing_result = Printer::new(bump, print_items.first_node, {
+    let (traces, writer_nodes) = Printer::new(bump, print_items.first_node, {
       let mut printer_options = options.to_printer_options();
       printer_options.enable_tracing = true;
       printer_options
@@ -92,9 +85,8 @@ pub fn trace_printing(get_print_items: impl FnOnce() -> PrintItems, options: Pri
     let writer_items_printer = WriteItemsPrinter::from(&options);
 
     let result = TracingResult {
-      traces: tracing_result.traces,
-      writer_nodes: tracing_result
-        .writer_nodes
+      traces,
+      writer_nodes: writer_nodes
         .into_iter()
         .map(|node| {
           let text = writer_items_printer.print(iter::once(node.item));

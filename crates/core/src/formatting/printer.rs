@@ -3,6 +3,8 @@ use rustc_hash::FxHashMap;
 
 use super::collections::*;
 use super::print_items::*;
+#[cfg(feature = "tracing")]
+use super::tracing::*;
 use super::writer::*;
 use super::WriteItem;
 
@@ -32,12 +34,6 @@ impl<'a> Clone for PrintItemContainer<'a> {
       index: self.index,
     }
   }
-}
-
-#[cfg(feature = "tracing")]
-pub struct PrintTracingResult<'a> {
-  pub traces: Vec<Trace>,
-  pub writer_nodes: Vec<&'a GraphNode<'a, WriteItem<'a>>>,
 }
 
 /// Options for printing.
@@ -116,13 +112,12 @@ impl<'a> Printer<'a> {
 
   /// Turns the print items into a collection of writer items according to the options along with traces.
   #[cfg(feature = "tracing")]
-  pub fn print_for_tracing(mut self) -> PrintTracingResult<'a> {
+  pub fn print_for_tracing(mut self) -> (Vec<Trace>, Vec<&'a GraphNode<'a, WriteItem<'a>>>) {
     self.inner_print();
-
-    PrintTracingResult {
-      traces: self.traces.expect("Should have set enable_tracing to true when creating the printer."),
-      writer_nodes: self.writer.get_nodes(),
-    }
+    (
+      self.traces.expect("Should have set enable_tracing to true when creating the printer."),
+      self.writer.get_nodes(),
+    )
   }
 
   fn inner_print(&mut self) {
