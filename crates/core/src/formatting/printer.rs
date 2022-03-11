@@ -1,10 +1,10 @@
 use bumpalo::Bump;
 use rustc_hash::FxHashMap;
+#[cfg(feature = "tracing")]
+use tracing::*;
 
 use super::collections::*;
 use super::print_items::*;
-#[cfg(feature = "tracing")]
-use super::tracing::*;
 use super::writer::*;
 use super::WriteItem;
 
@@ -66,9 +66,7 @@ pub struct Printer<'a> {
   resolving_save_point: Option<&'a SavePoint<'a>>,
   stored_info_positions: FxHashMap<usize, (u32, u32)>,
   #[cfg(feature = "tracing")]
-  traces: Option<Vec<Trace>>,
-  #[cfg(feature = "tracing")]
-  start_time: std::time::Instant,
+  tracing: Option<Tracing>,
 }
 
 impl<'a> Printer<'a> {
@@ -97,10 +95,9 @@ impl<'a> Printer<'a> {
       skip_moving_next: false,
       resolving_save_point: None,
       stored_info_positions: FxHashMap::default(),
+
       #[cfg(feature = "tracing")]
-      traces: if options.enable_tracing { Some(Vec::new()) } else { None },
-      #[cfg(feature = "tracing")]
-      start_time: std::time::Instant::now(),
+      tracing: options.enable_tracing.then(Tracing::default),
     }
   }
 
@@ -110,25 +107,15 @@ impl<'a> Printer<'a> {
     self.writer.items()
   }
 
-  /// Turns the print items into a collection of writer items according to the options along with traces.
-  #[cfg(feature = "tracing")]
-  pub fn print_for_tracing(mut self) -> (Vec<Trace>, Vec<&'a GraphNode<'a, WriteItem<'a>>>) {
-    self.inner_print();
-    (
-      self.traces.expect("Should have set enable_tracing to true when creating the printer."),
-      self.writer.get_nodes(),
-    )
-  }
-
   fn inner_print(&mut self) {
     while let Some(current_node) = &self.current_node {
       let current_node = unsafe { &*current_node.get_node() }; // ok because values won't be mutated while printing
       self.handle_print_node(current_node);
 
       #[cfg(feature = "tracing")]
-      self.create_trace(current_node);
-
-      // println!("{}", self.writer.to_string_for_debugging());
+      if let Some(tracing) = &mut self.tracing {
+        tracing.push(current_node, self.writer.get_current_node_id())
+      }
 
       if self.skip_moving_next {
         self.skip_moving_next = false;
@@ -145,17 +132,6 @@ impl<'a> Printer<'a> {
     self.verify_no_look_ahead_save_points();
     #[cfg(debug_assertions)]
     self.ensure_counts_zero();
-  }
-
-  #[cfg(feature = "tracing")]
-  fn create_trace(&mut self, current_node: &PrintNode) {
-    if let Some(traces) = self.traces.as_mut() {
-      traces.push(Trace {
-        nanos: (std::time::Instant::now() - self.start_time).as_nanos(),
-        print_node_id: current_node.print_node_id,
-        writer_node_id: self.writer.get_current_node_id(),
-      });
-    }
   }
 
   pub fn get_writer_info(&self) -> WriterInfo {
@@ -508,6 +484,46 @@ impl<'a> Printer<'a> {
         "Debug panic! The writer ignore indent count was not zero after printing. {0}",
         self.writer.get_ignore_indent_count()
       );
+    }
+  }
+}
+
+#[cfg(feature = "tracing")]
+mod tracing {
+  use super::*;
+  use crate::formatting::tracing::Trace;
+  use std::time::Instant;
+
+  pub struct Tracing {
+    traces: Vec<Trace>,
+    started_at: Instant,
+  }
+
+  impl Tracing {
+    pub fn push(&mut self, node: &PrintNode, writer_node_id: Option<usize>) {
+      self.traces.push(Trace {
+        nanos: (Instant::now() - self.started_at).as_nanos(),
+        print_node_id: node.print_node_id,
+        writer_node_id,
+      })
+    }
+  }
+
+  impl Default for Tracing {
+    fn default() -> Self {
+      Self {
+        traces: vec![],
+        started_at: Instant::now(),
+      }
+    }
+  }
+
+  impl<'a> Printer<'a> {
+    /// Turns the print items into a collection of writer items according to the options along with traces.
+    pub fn print_for_tracing(mut self) -> (Vec<Trace>, Vec<&'a GraphNode<'a, WriteItem<'a>>>) {
+      self.inner_print();
+      let tracing = self.tracing.expect("Should have set enable_tracing to true when creating the printer.");
+      (tracing.traces, self.writer.get_nodes())
     }
   }
 }
