@@ -114,7 +114,7 @@ impl<'a> Printer<'a> {
 
       #[cfg(feature = "tracing")]
       if let Some(tracing) = &mut self.tracing {
-        tracing.push(current_node, self.writer.get_current_node_id())
+        tracing.push(current_node, self.writer.head_node_id())
       }
 
       if self.skip_moving_next {
@@ -495,8 +495,8 @@ mod tracing {
   use std::time::Instant;
 
   pub struct Tracing {
-    traces: Vec<Trace>,
-    started_at: Instant,
+    pub traces: Vec<Trace>,
+    pub started_at: Instant,
   }
 
   impl Tracing {
@@ -523,7 +523,7 @@ mod tracing {
     pub fn print_for_tracing(mut self) -> (Vec<Trace>, Vec<&'a GraphNode<'a, WriteItem<'a>>>) {
       self.inner_print();
       let tracing = self.tracing.expect("Should have set enable_tracing to true when creating the printer.");
-      (tracing.traces, self.writer.get_nodes())
+      (tracing.traces, self.writer.tracing_nodes())
     }
   }
 }

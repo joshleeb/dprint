@@ -2,6 +2,8 @@ use super::collections::GraphNode;
 use super::print_items::WriterInfo;
 use super::StringContainer;
 use super::WriteItem;
+#[cfg(feature = "tracing")]
+use tracing::*;
 use bumpalo::Bump;
 
 pub struct WriterState<'a> {
@@ -55,14 +57,13 @@ pub struct Writer<'a> {
   state: WriterState<'a>,
   indent_width: u8,
   #[cfg(feature = "tracing")]
-  nodes: Option<Vec<&'a GraphNode<'a, WriteItem<'a>>>>,
+  tracing: Option<Tracing<'a>>,
 }
 
 impl<'a> Writer<'a> {
   pub fn new(bump: &'a Bump, options: WriterOptions) -> Writer<'a> {
     Writer {
       bump,
-      indent_width: options.indent_width,
       state: WriterState {
         current_line_column: 0,
         current_line_number: 0,
@@ -74,8 +75,9 @@ impl<'a> Writer<'a> {
         ignore_indent_count: 0,
         items: None,
       },
+      indent_width: options.indent_width,
       #[cfg(feature = "tracing")]
-      nodes: if options.enable_tracing { Some(Vec::new()) } else { None },
+      tracing: options.enable_tracing.then(Tracing::default),
     }
   }
 
@@ -241,8 +243,8 @@ impl<'a> Writer<'a> {
     self.state.items = Some(graph_node);
 
     #[cfg(feature = "tracing")]
-    if let Some(nodes) = self.nodes.as_mut() {
-      nodes.push(graph_node);
+    if let Some(tracing) = &mut self.tracing {
+      tracing.nodes.push(graph_node);
     }
 
     if self.state.indent_queue_count > 0 {
@@ -260,16 +262,6 @@ impl<'a> Writer<'a> {
 
   pub fn items(self) -> Option<impl Iterator<Item = WriteItem<'a>>> {
     self.state.items.map(|items| items.iter().rev())
-  }
-
-  #[cfg(feature = "tracing")]
-  pub fn get_current_node_id(&self) -> Option<usize> {
-    self.state.items.as_ref().map(|node| node.graph_node_id)
-  }
-
-  #[cfg(feature = "tracing")]
-  pub fn get_nodes(self) -> Vec<&'a GraphNode<'a, WriteItem<'a>>> {
-    self.nodes.expect("Should have set enable_tracing to true.")
   }
 
   #[cfg(debug_assertions)]
@@ -296,6 +288,27 @@ impl<'a> Writer<'a> {
 #[inline]
 fn get_line_start_column_number(writer_state: &WriterState, indent_width: u8) -> u32 {
   (writer_state.last_line_indent_level as u32) * (indent_width as u32)
+}
+
+#[cfg(feature = "tracing")]
+mod tracing {
+  use super::*;
+
+  #[derive(Default)]
+  pub struct Tracing<'a> {
+    pub nodes: Vec<&'a GraphNode<'a, WriteItem<'a>>>,
+  }
+
+  impl<'a> Writer<'a> {
+    pub fn head_node_id(&self) -> Option<usize> {
+      self.state.items.as_ref().map(|node| node.graph_node_id)
+    }
+
+    pub fn tracing_nodes(self) -> Vec<&'a GraphNode<'a, WriteItem<'a>>> {
+      let tracing = self.tracing.expect("should have set enable_tracing to true.");
+      tracing.nodes
+    }
+  }
 }
 
 #[cfg(test)]
